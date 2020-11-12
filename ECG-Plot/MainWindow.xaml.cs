@@ -1,8 +1,10 @@
 ﻿using Dicom;
+using Microsoft.Win32;
 using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 
@@ -18,7 +20,7 @@ namespace ECG_Plot
         /// <summary>
         /// max data
         /// </summary>
-        readonly int maxData = 800;
+        readonly int maxData = 1000;
 
         /// <summary>
         /// grid rows
@@ -46,6 +48,12 @@ namespace ECG_Plot
         double spacing;
 
         /// <summary>
+        /// Lead
+        /// <see cref="Lead" />
+        /// </summary>
+        Lead CurrentLead = Lead.Regular;
+
+        /// <summary>
         /// has ECG data
         /// </summary>
         bool hasData = false;
@@ -68,14 +76,7 @@ namespace ECG_Plot
                 return;
             }
 
-            DrawCanvas.Children.Clear();
-
-            DrawGrid(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight);
-
-            if (hasData)
-            {
-                DrawWaveform();
-            }
+            Redraw(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight);
         }
 
         private void OnDragOver(object s, DragEventArgs e)
@@ -99,6 +100,70 @@ namespace ECG_Plot
                 return;
 
             await OpenDcmFile(path);
+        }
+
+        private async void OnOpenClick(object s, RoutedEventArgs e)
+        {
+            OpenFileDialog dialog = new OpenFileDialog()
+            {
+                Filter = "Dicom Files (*.dcm)|*.dcm",
+            };
+
+            if (dialog.ShowDialog() != true)
+                return;
+
+            await OpenDcmFile(dialog.FileName);
+        }
+
+        private void OnExitClick(object s, RoutedEventArgs e)
+        {
+            Close();
+        }
+
+        private void OnLayoutChanged(object s, RoutedEventArgs e)
+        {
+            MenuItem clickedItem = s as MenuItem;
+
+            if (!clickedItem.IsChecked)
+            {
+                clickedItem.IsChecked = true;
+                return;
+            }
+
+            MenuItem parent = clickedItem.Parent as MenuItem;
+
+            foreach (var item in parent.Items)
+            {
+                if (item == s)
+                    continue;
+
+                (item as MenuItem).IsChecked = false;
+            }
+
+            switch (clickedItem.Tag)
+            {
+                case "Regular":
+                    CurrentLead = Lead.Regular;
+                    break;
+                case "3×4":
+                    CurrentLead = Lead.L3_4;
+                    break;
+                case "3×4+1":
+                    CurrentLead = Lead.L3_4_1;
+                    break;
+                case "3×4+3":
+                    CurrentLead = Lead.L3_4_3;
+                    break;
+                case "6×2":
+                    CurrentLead = Lead.L6_2;
+                    break;
+                case "Average Complex":
+                    CurrentLead = Lead.AverageComplex;
+                    break;
+            }
+
+            // change layout redraw
+            Redraw(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight);
         }
 
         public async Task OpenDcmFile(string file)
@@ -182,6 +247,23 @@ namespace ECG_Plot
             }
 
             return false;
+        }
+
+        /// <summary>
+        /// Redraw canvas
+        /// </summary>
+        /// <param name="width"></param>
+        /// <param name="height"></param>
+        private void Redraw(double width, double height)
+        {
+            DrawCanvas.Children.Clear();
+
+            DrawGrid(width, height);
+
+            if (hasData)
+            {
+                DrawWaveform();
+            }
         }
 
         /// <summary>
@@ -321,5 +403,15 @@ namespace ECG_Plot
                 DrawCanvas.Children.Add(polyline);
             }
         }
+    }
+
+    internal enum Lead
+    {
+        Regular,
+        L3_4,
+        L3_4_1,
+        L3_4_3,
+        L6_2,
+        AverageComplex
     }
 }

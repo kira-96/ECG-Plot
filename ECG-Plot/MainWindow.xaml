@@ -16,5 +16,25 @@
         Drop="OnDrop"
         SizeChanged="OnSizeChanged">
 
-    <Canvas x:Name="DrawCanvas" />
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Menu>
+            <MenuItem Header="_File">
+                <MenuItem Header="_Open" Click="OnOpenClick" />
+                <MenuItem Header="_Exit" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="_Layout">
+                <MenuItem Header="Regular" Tag="Regular" IsCheckable="True" IsChecked="True" Click="OnLayoutChanged" />
+                <MenuItem Header="3×4" Tag="3×4" IsCheckable="True" Click="OnLayoutChanged" />
+                <MenuItem Header="3×4+1" Tag="3×4+1" IsCheckable="True" Click="OnLayoutChanged" />
+                <MenuItem Header="3×4+3" Tag="3×4+3" IsCheckable="True" Click="OnLayoutChanged" />
+                <MenuItem Header="6×2" Tag="6×2" IsCheckable="True" Click="OnLayoutChanged" />
+                <MenuItem Header="Average Complex" Tag="Average Complex" IsCheckable="True" Click="OnLayoutChanged" />
+            </MenuItem>
+        </Menu>
+        <Canvas x:Name="DrawCanvas" Grid.Row="1" />
+    </Grid>
 </Window>
