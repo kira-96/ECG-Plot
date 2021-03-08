@@ -6,15 +6,15 @@
         xmlns:app="clr-namespace:ECG_Plot"
         mc:Ignorable="d"
         Title="ECG Plot" 
-        Width="640"
-        Height="480"
+        Width="1280"
+        Height="720"
         MinWidth="1280"
         MinHeight="720"
         AllowDrop="True"
         DragEnter="OnDragOver"
         DragOver="OnDragOver"
         Drop="OnDrop"
-        SizeChanged="OnSizeChanged">
+        Loaded="Window_Loaded">
 
     <Grid>
         <Grid.RowDefinitions>
@@ -35,6 +35,6 @@
                 <MenuItem Header="Average Complex" Tag="Average Complex" IsCheckable="True" Click="OnLayoutChanged" />
             </MenuItem>
         </Menu>
-        <Canvas x:Name="DrawCanvas" Grid.Row="1" />
+        <Image x:Name="ChartImage" Grid.Row="1" />
     </Grid>
 </Window>

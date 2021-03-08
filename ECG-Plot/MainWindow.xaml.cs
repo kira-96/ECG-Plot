@@ -1,12 +1,13 @@
 ﻿using Dicom;
 using Microsoft.Win32;
 using System;
+using System.Drawing;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Shapes;
+using System.Windows.Media.Imaging;
 
 namespace ECG_Plot
 {
@@ -16,6 +17,11 @@ namespace ECG_Plot
     public partial class MainWindow : Window
     {
         private readonly Logging.ILoggerService logger = Logging.LoggerService.Instance;
+
+        private readonly WriteableBitmap chartBitmap;
+
+        readonly int bitmapWidth = 1201;
+        readonly int bitmapHeight = 721;
 
         /// <summary>
         /// max data
@@ -40,12 +46,12 @@ namespace ECG_Plot
         /// <summary>
         /// cell size
         /// </summary>
-        double cellSize;
+        int cellSize;
 
         /// <summary>
         /// spacing between lines
         /// </summary>
-        double spacing;
+        int spacing;
 
         /// <summary>
         /// Lead
@@ -66,17 +72,16 @@ namespace ECG_Plot
         public MainWindow()
         {
             InitializeComponent();
+
+            chartBitmap = new WriteableBitmap(bitmapWidth, bitmapHeight, 96.0, 96.0, PixelFormats.Bgr24, null);
+            ChartImage.Source = chartBitmap;
         }
 
-        private void OnSizeChanged(object s, SizeChangedEventArgs e)
+        private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            if (!CalculateCellSize(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight))
-            {
-                // small changes, do not redraw
-                return;
-            }
+            CalculateCellSize(chartBitmap.PixelWidth, chartBitmap.PixelHeight);
 
-            Redraw(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight);
+            Redraw(chartBitmap.PixelWidth, chartBitmap.PixelHeight);
         }
 
         private void OnDragOver(object s, DragEventArgs e)
@@ -163,7 +168,7 @@ namespace ECG_Plot
             }
 
             // change layout redraw
-            Redraw(DrawCanvas.ActualWidth, DrawCanvas.ActualHeight);
+            Redraw(chartBitmap.PixelWidth, chartBitmap.PixelHeight);
         }
 
         public async Task OpenDcmFile(string file)
@@ -193,7 +198,7 @@ namespace ECG_Plot
 
             GetWaveformData(dataset.GetSequence(DicomTag.WaveformSequence));
 
-            DrawWaveform();
+            Redraw(chartBitmap.PixelWidth, chartBitmap.PixelHeight);
         }
 
         /// <summary>
@@ -232,9 +237,9 @@ namespace ECG_Plot
         /// <param name="width"></param>
         /// <param name="height"></param>
         /// <returns></returns>
-        private bool CalculateCellSize(double width, double height)
+        private bool CalculateCellSize(int width, int height)
         {
-            double cellSize = height / rows;
+            int cellSize = height / rows;
 
             if (cellSize > this.cellSize * 1.1 ||
                 cellSize < this.cellSize * 0.9)
@@ -254,16 +259,28 @@ namespace ECG_Plot
         /// </summary>
         /// <param name="width"></param>
         /// <param name="height"></param>
-        private void Redraw(double width, double height)
+        private void Redraw(int width, int height)
         {
-            DrawCanvas.Children.Clear();
+            chartBitmap.Lock();
 
-            DrawGrid(width, height);
+            using Bitmap bitmap = new Bitmap(
+                chartBitmap.PixelWidth, chartBitmap.PixelHeight,
+                chartBitmap.BackBufferStride,
+                System.Drawing.Imaging.PixelFormat.Format24bppRgb,
+                chartBitmap.BackBuffer);
+
+            using Graphics graphics = Graphics.FromImage(bitmap);
+            graphics.Clear(System.Drawing.Color.White);
+
+            DrawGrid(graphics, width, height);
 
             if (hasData)
             {
-                DrawWaveform();
+                DrawWaveform(graphics);
             }
+
+            chartBitmap.AddDirtyRect(new Int32Rect(0, 0, chartBitmap.PixelWidth, chartBitmap.PixelHeight));
+            chartBitmap.Unlock();
         }
 
         /// <summary>
@@ -271,69 +288,40 @@ namespace ECG_Plot
         /// </summary>
         /// <param name="width"></param>
         /// <param name="height"></param>
-        private void DrawGrid(double width, double height)
+        private void DrawGrid(Graphics graphics, int width, int height)
         {
+            // pen
+            System.Drawing.Pen pen1 = new System.Drawing.Pen(System.Drawing.Brushes.Red, 1);
+            System.Drawing.Pen pen2 = new System.Drawing.Pen(System.Drawing.Brushes.PaleVioletRed, 0.5f);
+
             // draw row lines
-            double y = 0;
+            int y = 0;
 
             for (int i = 0; i < rows; i++)
             {
-                DrawCanvas.Children.Add(new Line()
-                {
-                    Stroke = Brushes.Red,
-                    StrokeThickness = 1,
-                    X1 = 0,
-                    Y1 = y,
-                    X2 = width,
-                    Y2 = y
-                });
+                graphics.DrawLine(pen1, 0, y, width, y);
 
                 y += spacing;
 
                 for (int j = 1; j < ticks; j++)
                 {
-                    DrawCanvas.Children.Add(new Line()
-                    {
-                        Stroke = Brushes.PaleVioletRed,
-                        StrokeThickness = 1,
-                        StrokeDashArray = { 1, 1 },
-                        X1 = 0,
-                        Y1 = y,
-                        X2 = width,
-                        Y2 = y
-                    });
+                    graphics.DrawLine(pen2, 0, y, width, y);
 
                     y += spacing;
                 }
             }
 
-            DrawCanvas.Children.Add(new Line()
-            {
-                Stroke = Brushes.Red,
-                StrokeThickness = 1,
-                X1 = 0,
-                Y1 = y,
-                X2 = width,
-                Y2 = y
-            });
+            graphics.DrawLine(pen1, 0, y, width, y);
 
             // draw column lines
-            double x = 0;
+            int x = 0;
 
             for (int i = 0; i <= columns; i++)
             {
                 if (x > width)
                     break;
 
-                DrawCanvas.Children.Add(new Line()
-                {
-                    Stroke = Brushes.Red,
-                    StrokeThickness = 1,
-                    X1 = x,
-                    Y1 = 0,
-                    X2 = x,
-                    Y2 = height
-                });
+                graphics.DrawLine(pen1, x, 0, x, height);
 
                 x += spacing;
 
@@ -342,42 +330,25 @@ namespace ECG_Plot
                     if (x > width)
                         break;
 
-                    DrawCanvas.Children.Add(new Line()
-                    {
-                        Stroke = Brushes.PaleVioletRed,
-                        StrokeThickness = 1,
-                        StrokeDashArray = { 1, 1 },
-                        X1 = x,
-                        Y1 = 0,
-                        X2 = x,
-                        Y2 = height
-                    });
+                    graphics.DrawLine(pen2, x, 0, x, height);
 
                     x += spacing;
                 }
             }
 
-            DrawCanvas.Children.Add(new Line()
-            {
-                Stroke = Brushes.Red,
-                StrokeThickness = 1,
-                X1 = x,
-                Y1 = 0,
-                X2 = x,
-                Y2 = height
-            });
+            graphics.DrawLine(pen2, x, 0, x, height);
         }
 
         /// <summary>
         /// draw waveform
         /// </summary>
-        private void DrawWaveform()
+        private void DrawWaveform(Graphics graphics)
         {
             int channels = waveformData.GetLength(0);
             int samples = waveformData.GetLength(1);
 
-            double scaleX = cellSize * columns / samples;
-            double scaleY = cellSize / maxData;
+            float scaleX = (float)cellSize * columns / samples;
+            float scaleY = (float)cellSize / maxData;
 
             for (int i = 0; i < channels; i++)
             {
@@ -387,20 +358,18 @@ namespace ECG_Plot
                     break;
                 }
 
-                double offsetY = spacing * ticks * (2 * i + 1);
+                int offsetY = spacing * ticks * (2 * i + 1);
 
-                Polyline polyline = new Polyline()
-                {
-                    Stroke = Brushes.Black,
-                    StrokeThickness = 1
-                };
+                System.Drawing.Pen pen = new System.Drawing.Pen(System.Drawing.Brushes.Black, 1.5f);
+
+                PointF[] points = new PointF[samples];
 
                 for (int j = 0; j < samples; j++)
                 {
-                    polyline.Points.Add(new Point(j * scaleX, offsetY - waveformData[i, j] * scaleY));
+                    points[j] = new PointF(j * scaleX, offsetY - waveformData[i, j] * scaleY);
                 }
 
-                DrawCanvas.Children.Add(polyline);
+                graphics.DrawLines(pen, points);
             }
         }
     }
